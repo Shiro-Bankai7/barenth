@@ -19,6 +19,13 @@ class InfiniteGrid {
         this.hintTimer = 0;
         this.ulquiorraTexture = null;
         this.isLoaded = false;
+        this.colorPhase = 0;
+        this.gridLayers = [];
+        this.keys = {};
+        this.touchStart = null;
+        this.touchDelta = null;
+        this.rareColorChance = 0; // Ultra rare color trigger
+        this.currentRareColor = null;
         
         this.init();
         this.animate();
@@ -91,71 +98,108 @@ class InfiniteGrid {
     }
     
     createInfiniteGrid() {
-        const gridSize = 100;
-        const gridDivisions = 50;
-        const lineCount = gridDivisions * 2 + 1;
+        // Create multiple grid layers for infinite illusion
+        const layerConfigs = [
+            { distance: 0, scale: 1, opacity: 0.8, divisions: 50 },
+            { distance: -50, scale: 1.5, opacity: 0.4, divisions: 40 },
+            { distance: -100, scale: 2, opacity: 0.2, divisions: 30 },
+            { distance: -200, scale: 3, opacity: 0.1, divisions: 20 },
+            { distance: -400, scale: 4, opacity: 0.05, divisions: 15 }
+        ];
         
-        // Create grid material with neon glow
-        const material = new THREE.LineBasicMaterial({
-            color: 0x00ffff,
-            transparent: true,
-            opacity: 0.8,
-            linewidth: 1
+        layerConfigs.forEach((config, layerIndex) => {
+            const layer = new THREE.Group();
+            layer.position.z = config.distance;
+            
+            const gridSize = 100 * config.scale;
+            const gridDivisions = config.divisions;
+            const lineCount = gridDivisions * 2 + 1;
+            
+            // Create grid material with color pulsing
+            const material = new THREE.LineBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: config.opacity,
+                linewidth: 1
+            });
+            
+            // Create horizontal lines
+            for (let i = 0; i < lineCount; i++) {
+                const z = (i - gridDivisions) * (gridSize / gridDivisions);
+                const geometry = new THREE.BufferGeometry();
+                const vertices = [];
+                
+                for (let j = 0; j < lineCount; j++) {
+                    const x = (j - gridDivisions) * (gridSize / gridDivisions);
+                    vertices.push(x, 0, z);
+                }
+                
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                const line = new THREE.Line(geometry, material.clone());
+                layer.add(line);
+                this.gridLines.push(line);
+                
+                // Add layer-specific pulsing
+                gsap.to(line.material, {
+                    opacity: config.opacity * 0.5,
+                    duration: 3 + layerIndex * 0.5 + Math.random() * 2,
+                    repeat: -1,
+                    yoyo: true,
+                    ease: "power2.inOut",
+                    delay: Math.random() * 2
+                });
+            }
+            
+            // Create vertical lines
+            for (let i = 0; i < lineCount; i++) {
+                const x = (i - gridDivisions) * (gridSize / gridDivisions);
+                const geometry = new THREE.BufferGeometry();
+                const vertices = [];
+                
+                for (let j = 0; j < lineCount; j++) {
+                    const z = (j - gridDivisions) * (gridSize / gridDivisions);
+                    vertices.push(x, 0, z);
+                }
+                
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                const line = new THREE.Line(geometry, material.clone());
+                layer.add(line);
+                this.gridLines.push(line);
+                
+                // Add layer-specific pulsing
+                gsap.to(line.material, {
+                    opacity: config.opacity * 0.5,
+                    duration: 3 + layerIndex * 0.5 + Math.random() * 2,
+                    repeat: -1,
+                    yoyo: true,
+                    ease: "power2.inOut",
+                    delay: Math.random() * 2
+                });
+            }
+            
+            this.gridLayers.push(layer);
+            this.scene.add(layer);
+            
+            // Layer-specific floating animation
+            gsap.to(layer.position, {
+                y: layerIndex * 0.1,
+                duration: 10 + layerIndex * 2,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut"
+            });
+            
+            gsap.to(layer.rotation, {
+                y: Math.PI * 0.05 * (layerIndex + 1),
+                duration: 20 + layerIndex * 5,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut"
+            });
         });
         
-        // Create horizontal lines
-        for (let i = 0; i < lineCount; i++) {
-            const z = (i - gridDivisions) * (gridSize / gridDivisions);
-            const geometry = new THREE.BufferGeometry();
-            const vertices = [];
-            
-            for (let j = 0; j < lineCount; j++) {
-                const x = (j - gridDivisions) * (gridSize / gridDivisions);
-                vertices.push(x, 0, z);
-            }
-            
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            const line = new THREE.Line(geometry, material.clone());
-            this.scene.add(line);
-            this.gridLines.push(line);
-            
-            // Add pulsing animation
-            gsap.to(line.material, {
-                opacity: 0.4,
-                duration: 2 + Math.random() * 2,
-                repeat: -1,
-                yoyo: true,
-                ease: "power2.inOut",
-                delay: Math.random() * 2
-            });
-        }
-        
-        // Create vertical lines
-        for (let i = 0; i < lineCount; i++) {
-            const x = (i - gridDivisions) * (gridSize / gridDivisions);
-            const geometry = new THREE.BufferGeometry();
-            const vertices = [];
-            
-            for (let j = 0; j < lineCount; j++) {
-                const z = (j - gridDivisions) * (gridSize / gridDivisions);
-                vertices.push(x, 0, z);
-            }
-            
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            const line = new THREE.Line(geometry, material.clone());
-            this.scene.add(line);
-            this.gridLines.push(line);
-            
-            // Add pulsing animation
-            gsap.to(line.material, {
-                opacity: 0.4,
-                duration: 2 + Math.random() * 2,
-                repeat: -1,
-                yoyo: true,
-                ease: "power2.inOut",
-                delay: Math.random() * 2
-            });
-        }
+        // Enhanced fog with multiple layers
+        this.scene.fog = new THREE.FogExp2(0x000000, 0.015);
         
         // Camera movement animation
         this.animateCamera();
@@ -328,6 +372,13 @@ class InfiniteGrid {
         window.addEventListener('resize', () => this.onWindowResize());
         window.addEventListener('mousemove', (event) => this.onMouseMove(event));
         window.addEventListener('click', (event) => this.onClick(event));
+        window.addEventListener('keydown', (event) => this.onKeyDown(event));
+        window.addEventListener('keyup', (event) => this.onKeyUp(event));
+        
+        // Mobile touch controls
+        window.addEventListener('touchstart', (event) => this.onTouchStart(event));
+        window.addEventListener('touchmove', (event) => this.onTouchMove(event));
+        window.addEventListener('touchend', (event) => this.onTouchEnd(event));
     }
     
     onWindowResize() {
@@ -349,6 +400,204 @@ class InfiniteGrid {
             y: 5 + parallaxY,
             duration: 1,
             ease: "power2.out"
+        });
+    }
+    
+    onTouchStart(event) {
+        if (event.touches.length === 1) {
+            this.touchStart = {
+                x: event.touches[0].clientX,
+                y: event.touches[0].clientY
+            };
+            this.touchDelta = { x: 0, y: 0 };
+        }
+    }
+    
+    onTouchMove(event) {
+        if (event.touches.length === 1 && this.touchStart) {
+            event.preventDefault();
+            
+            const currentTouch = {
+                x: event.touches[0].clientX,
+                y: event.touches[0].clientY
+            };
+            
+            this.touchDelta = {
+                x: currentTouch.x - this.touchStart.x,
+                y: currentTouch.y - this.touchStart.y
+            };
+            
+            // Convert to normalized device coordinates
+            this.mouse.x = (currentTouch.x / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(currentTouch.y / window.innerHeight) * 2 + 1;
+            
+            // Mobile parallax effect
+            const parallaxX = this.mouse.x * 3;
+            const parallaxY = this.mouse.y * 3;
+            
+            gsap.to(this.camera.position, {
+                x: parallaxX,
+                y: 5 + parallaxY,
+                duration: 0.5,
+                ease: "power2.out"
+            });
+        }
+    }
+    
+    onTouchEnd(event) {
+        if (this.touchDelta) {
+            // Swipe detection for layer movement
+            const swipeThreshold = 50;
+            
+            if (Math.abs(this.touchDelta.x) > swipeThreshold) {
+                // Horizontal swipe - rotate layers
+                const direction = this.touchDelta.x > 0 ? 1 : -1;
+                this.gridLayers.forEach((layer, index) => {
+                    gsap.to(layer.rotation, {
+                        y: layer.rotation.y + (Math.PI * 0.1 * direction),
+                        duration: 1,
+                        ease: "power2.out"
+                    });
+                });
+            }
+            
+            if (Math.abs(this.touchDelta.y) > swipeThreshold) {
+                // Vertical swipe - move layers forward/backward
+                const direction = this.touchDelta.y > 0 ? 1 : -1;
+                this.gridLayers.forEach((layer, index) => {
+                    gsap.to(layer.position, {
+                        z: layer.position.z + (10 * direction),
+                        duration: 1,
+                        ease: "power2.out"
+                    });
+                });
+            }
+            
+            // Tap for color pulse (small delta = tap)
+            if (Math.abs(this.touchDelta.x) < 10 && Math.abs(this.touchDelta.y) < 10) {
+                this.createColorPulse();
+            }
+        }
+        
+        this.touchStart = null;
+        this.touchDelta = null;
+    }
+    
+    onKeyDown(event) {
+        this.keys[event.key.toLowerCase()] = true;
+        
+        // Keyboard effects
+        switch(event.key.toLowerCase()) {
+            case 'w':
+                // Move forward through layers
+                this.gridLayers.forEach((layer, index) => {
+                    gsap.to(layer.position, {
+                        z: layer.position.z + 10,
+                        duration: 1,
+                        ease: "power2.out"
+                    });
+                });
+                break;
+            case 's':
+                // Move backward through layers
+                this.gridLayers.forEach((layer, index) => {
+                    gsap.to(layer.position, {
+                        z: layer.position.z - 10,
+                        duration: 1,
+                        ease: "power2.out"
+                    });
+                });
+                break;
+            case 'a':
+                // Rotate layers left
+                this.gridLayers.forEach((layer, index) => {
+                    gsap.to(layer.rotation, {
+                        y: layer.rotation.y - Math.PI * 0.1,
+                        duration: 1,
+                        ease: "power2.out"
+                    });
+                });
+                break;
+            case 'd':
+                // Rotate layers right
+                this.gridLayers.forEach((layer, index) => {
+                    gsap.to(layer.rotation, {
+                        y: layer.rotation.y + Math.PI * 0.1,
+                        duration: 1,
+                        ease: "power2.out"
+                    });
+                });
+                break;
+            case ' ':
+                // Space - create color pulse
+                this.createColorPulse();
+                break;
+            case 'r':
+                // R - reset layers
+                this.resetLayers();
+                break;
+        }
+    }
+    
+    onKeyUp(event) {
+        this.keys[event.key.toLowerCase()] = false;
+    }
+    
+    createColorPulse() {
+        // Create expanding cyan pulse effect
+        const pulseGeometry = new THREE.RingGeometry(0.1, 5, 32);
+        const pulseMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ffff, // Pure cyan
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        
+        const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
+        pulse.rotation.x = -Math.PI / 2;
+        pulse.position.set(0, 0, 0);
+        this.scene.add(pulse);
+        
+        // Animate pulse
+        gsap.to(pulse.scale, {
+            x: 20,
+            y: 20,
+            z: 20,
+            duration: 2,
+            ease: "power2.out"
+        });
+        
+        gsap.to(pulse.material, {
+            opacity: 0,
+            duration: 2,
+            ease: "power2.out",
+            onComplete: () => {
+                this.scene.remove(pulse);
+                pulse.geometry.dispose();
+                pulse.material.dispose();
+            }
+        });
+    }
+    
+    resetLayers() {
+        // Reset all layers to original positions
+        const originalPositions = [0, -50, -100, -200, -400];
+        this.gridLayers.forEach((layer, index) => {
+            gsap.to(layer.position, {
+                x: 0,
+                y: 0,
+                z: originalPositions[index],
+                duration: 2,
+                ease: "power2.inOut"
+            });
+            
+            gsap.to(layer.rotation, {
+                x: 0,
+                y: 0,
+                z: 0,
+                duration: 2,
+                ease: "power2.inOut"
+            });
         });
     }
     
@@ -422,12 +671,47 @@ class InfiniteGrid {
     animate() {
         requestAnimationFrame(() => this.animate());
         
-        // Subtle grid animation - only affect non-hovered lines
-        const time = Date.now() * 0.001;
+        // Ultra rare color chance (1 in 1000 frames)
+        this.rareColorChance++;
+        if (this.rareColorChance > 1000) {
+            this.rareColorChance = 0;
+            this.currentRareColor = new THREE.Color().setHSL(0.75, 1, 0.6); // Ultra rare magenta
+        } else if (this.rareColorChance > 100) {
+            this.currentRareColor = null; // Reset after brief appearance
+        }
+        
+        // Subtle color variation within cyan range with ultra rare color
+        this.colorPhase += 0.005;
+        const brightness = (Math.sin(this.colorPhase) + 1) / 2; // Oscillate between 0 and 1
+        
+        // Apply subtle brightness variation to grid lines
         this.gridLines.forEach((line, index) => {
             const offset = index * 0.1;
-            line.material.opacity = 0.6 + Math.sin(time + offset) * 0.2;
+            const lineBrightness = 0.7 + (Math.sin(this.colorPhase + offset) * 0.3); // 70% to 100% brightness
+            
+            // Use ultra rare color or cyan
+            let lineColor;
+            if (this.currentRareColor && Math.random() < 0.01) { // Only 1% of lines get rare color
+                lineColor = this.currentRareColor.clone();
+            } else {
+                lineColor = new THREE.Color().setHSL(0.5, 1, lineBrightness * 0.5); // Pure cyan with brightness variation
+            }
+            
+            line.material.color = lineColor;
+            
+            // Subtle grid animation
+            line.material.opacity = 0.6 + Math.sin(Date.now() * 0.001 + offset) * 0.2;
         });
+        
+        // Dynamic fog based on mouse position
+        const fogDensity = 0.015 + Math.abs(this.mouse.y) * 0.01;
+        this.scene.fog.density = fogDensity;
+        
+        // Keyboard-based camera movement
+        if (this.keys['w']) this.camera.position.z -= 0.5;
+        if (this.keys['s']) this.camera.position.z += 0.5;
+        if (this.keys['a']) this.camera.position.x -= 0.5;
+        if (this.keys['d']) this.camera.position.x += 0.5;
         
         // Occasionally reveal hints from hidden cipher
         this.hintTimer++;
